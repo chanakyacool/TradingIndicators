@@ -1,0 +1,231 @@
+
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © AlgoTest
+//@version=5
+
+indicator("All-in-One Multi-Indicator Options Strategy",shorttitle = "All-in-One", overlay=false)
+
+// Input for Index and Expiry Date
+spot = input.string("BANKNIFTY", title = "Spot Symbol", options = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"], group = "Index")
+
+tooltip_day = "Enter the day of the expiry. Add 0 in front if the day is a single digit. For example: 05 instead of 5"
+tooltip_month = "Enter the month of the expiry. Add 0 in front if the month is a single digit. For example: 06 instead of 6"
+tooltip_year = "Enter the year of the expiry. Use the last two digits of the year. For example: 24 instead of 2024"
+
+_day = input.string("21", title = "Expiry Day", tooltip = tooltip_day, group="Expiry Date")
+_month = input.string("08", title = "Expiry Month", tooltip = tooltip_month, group="Expiry Date")
+_year = input.string("24", title = "Expiry Year", tooltip = tooltip_year, group="Expiry Date")
+
+// Input for Strikes
+tooltip_ = "You can select any Strike, and choose to include both strikes or just one"
+strike_ce = input.int(50800, "Call Strike", tooltip = tooltip_, group = "Select Strike")
+strike_pe = input.int(50800, "Put Strike", tooltip = tooltip_, group = "Select Strike")
+
+// Option to include both strikes
+strike_choice = input.string("Combined", title = "Select Strike", options = ["Combined", "Only Call", "Only Put"], group = "Select Strike")
+
+// Generate symbols for Call and Put options
+var string symbol_CE = spot + _year + _month + _day + "C" + str.tostring(strike_ce)
+var string symbol_PE = spot + _year + _month + _day + "P" + str.tostring(strike_pe)
+
+// Request security data for both Call and Put options
+[call_open, call_high, call_low, call_close] = request.security(symbol_CE, timeframe.period, [open, high, low, close])
+[put_open, put_high, put_low, put_close] = request.security(symbol_PE, timeframe.period, [open, high, low, close])
+
+call_volume = request.security( symbol_CE, timeframe.period , volume ) 
+put_volume = request.security( symbol_PE, timeframe.period , volume ) 
+
+var float combined_open = 0
+var float combined_high = 0
+var float combined_low = 0
+var float combined_close = 0
+var float combined_vol = 0
+
+// Calculate combined premium based on strike choice
+if strike_choice == "Combined"
+    combined_open := call_open + put_open
+    combined_close := call_close + put_close
+    combined_high := math.max(combined_open, combined_close)
+    combined_low := math.min(combined_open, combined_close)
+    combined_vol := call_volume + put_volume
+
+else if strike_choice == "Only Call"
+    combined_open := call_open
+    combined_close := call_close
+    combined_high := call_high
+    combined_low := call_low
+    combined_vol := call_volume
+
+else
+    combined_open := put_open
+    combined_close := put_close
+    combined_high := put_high
+    combined_low := put_low
+    combined_vol := put_volume
+
+// Plot combined premium as a candle
+plotcandle(combined_open, combined_high, combined_low, combined_close, title = "Combined Premium", color = combined_close > combined_open ? color.green : color.red)
+
+// Indicator selection
+use_ema_crossover = input.bool(true, title = "Use EMA Crossover", group = "Indicators")
+use_supertrend = input.bool(false, title = "Use Supertrend", group = "Indicators")
+use_vwap = input.bool(false, title = "Use VWAP", group = "Indicators")
+use_rsi = input.bool(false, title = "Use RSI", group = "Indicators")
+use_sma = input.bool(false, title = "Use SMA", group = "Indicators")
+
+pine_supertrend_value(factor, atrPeriod) =>
+    src = combined_close
+    atr = ta.atr(atrPeriod)
+    upperBand = src + factor * atr
+    lowerBand = src - factor * atr
+    prevLowerBand = nz(lowerBand[1])
+    prevUpperBand = nz(upperBand[1])
+
+    lowerBand := lowerBand > prevLowerBand or combined_close[1] < prevLowerBand ? lowerBand : prevLowerBand
+    upperBand := upperBand < prevUpperBand or combined_close[1] > prevUpperBand ? upperBand : prevUpperBand
+    int _direction = na
+    float superTrend = na
+    prevSuperTrend = superTrend[1]
+    if na(atr[1])
+        _direction := 1
+    else if prevSuperTrend == prevUpperBand
+        _direction := combined_close > upperBand ? -1 : 1
+    else
+        _direction := combined_close < lowerBand ? 1 : -1
+    superTrend := _direction == -1 ? lowerBand : upperBand
+    superTrend
+
+pine_supertrend_dir(factor, atrPeriod) =>
+    src = combined_close
+    atr = ta.atr(atrPeriod)
+    upperBand = src + factor * atr
+    lowerBand = src - factor * atr
+    prevLowerBand = nz(lowerBand[1])
+    prevUpperBand = nz(upperBand[1])
+
+    lowerBand := lowerBand > prevLowerBand or combined_close[1] < prevLowerBand ? lowerBand : prevLowerBand
+    upperBand := upperBand < prevUpperBand or combined_close[1] > prevUpperBand ? upperBand : prevUpperBand
+    int _direction = na
+    float superTrend = na
+    prevSuperTrend = superTrend[1]
+    if na(atr[1])
+        _direction := 1
+    else if prevSuperTrend == prevUpperBand
+        _direction := combined_close > upperBand ? -1 : 1
+    else
+        _direction := combined_close < lowerBand ? 1 : -1
+    superTrend := _direction == -1 ? lowerBand : upperBand
+    _direction
+
+
+// Input for EMA lengths
+fastLength = input.int(7, 'Fast EMA Length', group = "EMA")
+slowLength = input.int(12, 'Slow EMA Length', group = "EMA")
+
+// Input for SuperTrend
+atrLength = input.int(7, 'ATR Length', group = "SuperTrend")
+fac = input.float(2, 'Factor', group = "SuperTrend")
+
+// Input for RSI
+rsi_length = input.int(7, 'Length', group="RSI")
+rsi_ob_level = input.int(80, 'Overbought', group="RSI")
+rsi_os_level = input.int(20, 'Oversold', group="RSI")
+
+// Input for SMA
+sma_length = input.int(7, 'SMA Length', group = "SMA")
+
+
+var float fast_ema = na 
+var float slow_ema = na 
+var float supertrend = na 
+var int direction = na 
+var float rsi_val = na 
+var float sma_val = na 
+
+var float sumPriceVolume = 0.0
+var float sumVolume = 0.0
+var float vwap = 0.0
+
+
+// Fast EMA
+if use_ema_crossover
+    fast_ema := ta.ema(combined_close, fastLength)
+    slow_ema := ta.ema(combined_close, slowLength)
+
+// Supertrend
+if use_supertrend
+    supertrend := pine_supertrend_value( fac, atrLength)
+    direction := pine_supertrend_dir( fac, atrLength)
+
+// VWAP
+if use_vwap
+    if (dayofweek != dayofweek[1])  
+        sumPriceVolume := 0.0
+        sumVolume := 0.0
+        vwap := 0.0
+
+    sumPriceVolume += combined_close * combined_vol
+    sumVolume += combined_vol
+    vwap := sumPriceVolume / sumVolume
+
+// RSI
+if use_rsi
+    rsi_val := ta.rsi(combined_close, rsi_length)
+
+// SMA
+if use_sma
+    sma_val := ta.sma(combined_close, sma_length)
+
+plot(fast_ema, title='Fast EMA', color=color.blue, linewidth=2)
+plot(slow_ema, title='Slow EMA', color=color.yellow, linewidth=2)
+plot(direction < 0 ? supertrend : na, "Up direction", color = color.green, style=plot.style_linebr)
+plot(direction > 0 ? supertrend : na, "Down direction", color = color.red, style=plot.style_linebr)
+plot(use_vwap? vwap : na, title='VWAP', color=color.purple, linewidth=2)
+plot(sma_val, title='SMA', color=color.maroon, linewidth=2)
+
+// Define buy and sell conditions based on selected indicators
+var bool buy = false
+var bool sell = false
+var int buyC = 0
+var int sellC = 0
+
+if dayofweek != dayofweek[1]
+    buyC := 0
+    sellC := 0
+
+if use_ema_crossover
+    buy := ( ta.crossover(fast_ema, slow_ema) ) and buyC == 0
+    sell := ( ta.crossunder(fast_ema, slow_ema) ) and sellC == 0
+
+if use_vwap
+    buy := ( buy ? buy and ta.crossover(combined_close, vwap) : ta.crossover(combined_close, vwap) ) and buyC == 0
+    sell := ( sell ? sell and ta.crossunder(combined_close, vwap) : ta.crossunder(combined_close, vwap) ) and sellC == 0
+
+if use_rsi
+    buy := ( buy ? buy and ta.crossover(rsi_val, rsi_ob_level) : ta.crossover(rsi_val, rsi_ob_level) ) and buyC == 0
+    sell := ( sell ? sell and ta.crossunder(rsi_val, rsi_os_level) : ta.crossunder(rsi_val, rsi_os_level) ) and sellC == 0
+
+if use_sma
+    buy := ( buy ? buy and ta.crossover(combined_close, sma_val) : ta.crossover(combined_close, sma_val) ) and buyC == 0
+    sell := ( sell ? sell and ta.crossunder(combined_close, sma_val) : ta.crossunder(combined_close, sma_val) ) and sellC == 0
+
+if use_supertrend
+    buy := ( buy ? direction == -1 : direction == -1 and direction[1] == 1 ) and buyC == 0
+    sell := ( sell ? direction == 1 : direction == 1 and direction[1] == -1 ) and sellC == 0
+
+if buy 
+    buyC := 1
+    sellC := 0
+
+if sell 
+    sellC := 1
+    buyC := 0
+
+// Plot buy and sell signals
+plotshape(buy, title = "Buy", text = 'Buy', style = shape.labeldown, location = location.top, color= color.green, textcolor = color.white, size = size.small)
+plotshape(sell, title = "Sell", text = 'Sell', style = shape.labelup, location = location.bottom, color= color.red, textcolor = color.white, size = size.small)
+
+// Alert conditions
+alertcondition(buy, "Buy", "Buy")
+alertcondition(sell, "Sell", "Sell")
+

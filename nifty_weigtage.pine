@@ -1,0 +1,451 @@
+// © annihc
+
+//@version=5
+indicator("NIFTY_STOCK_WEIGTAGE", overlay = true, scale = scale.none)
+
+//USER INPUTS
+
+var string tableSettings = "TABLE SETTINGS"
+
+isShowTable = input.string("YES", "SHOW TABLE", options = ["YES", "NO"], inline = "0", group = tableSettings)
+tableTransparency = input.int(0, "\t\tTABLE TRANSPARENCY", minval = 0, maxval = 90, step = 5, inline = "0", group = tableSettings)
+
+tableTimeframe = input.string("15", "CHANGE TABLE TIMEFRAME", options = ["1", "3", "5", "15", "30", "60", "120", "240", "D", "W"], inline = "1", group = tableSettings)
+
+string  bullTableYposInput = input.string("top", "Bull Panel Y axis", inline = "2", options = ["top", "middle", "bottom"], group = tableSettings)
+string  bullTableXposInput = input.string("right", "Bull Panel X axis", inline = "2", options = ["left", "center", "right"], group = tableSettings)
+
+string  bearTableYposInput = input.string("bottom", "Bear Panel Y axis", inline = "3", options = ["top", "middle", "bottom"], group = tableSettings)
+string  bearTableXposInput = input.string("right", "Bear Panel X axis", inline = "3", options = ["left", "center", "right"], group = tableSettings)
+
+int     bearTableFrameWidth = input.int(10, "Bear Frame Width", minval = 0, maxval = 10, inline = "4", group = tableSettings)
+int     bullTableFrameWidth = input.int(10, "Bull Frame Width", minval = 0, maxval = 10, inline = "4", group = tableSettings)
+// stockWeightageMAPeriod = input.int(20, " Period of Positive/negative stock weightage MA", minval = 2, maxval = 200, step = 3)
+// HMALagPeriod = input.int(2, " Lagging Hull Lag", minval = 1, maxval = 10, step = 1)
+
+nl = "\n"
+niftyImpactValue = 0.0
+setRowNumberPositive = 0
+setRowNumberNegative = 0
+
+//TABLE
+//Table Properties
+indicatorTablePositive = table.new(bullTableYposInput + "_" + bullTableXposInput, columns = 10, rows = 50, frame_color = color.new(color.black, 90), frame_width = bullTableFrameWidth,
+     bgcolor = color.new(color.black, 100), border_width = 1, border_color = color.new(color.white, 100))
+indicatorTableNegative = table.new(bearTableYposInput + "_" + bearTableXposInput, columns = 10, rows = 50, frame_color = color.new(color.black, 90), frame_width = bearTableFrameWidth,
+     bgcolor = color.new(color.black, 100), border_width = 1, border_color = color.new(color.white, 100))
+
+//label
+labelNiftyImpactValue = label.new(last_bar_index + 1, y = close, style = label.style_label_left,
+     color = color.red, textcolor = color.white, textalign = text.align_left, size = size.normal)
+
+
+//Table function
+tableCellSymbolPositive(sym, rowNumber) =>
+    if isShowTable == "YES" //rownumber>5? rownumber - 5: rownumber
+        getRowNumber = rowNumber
+        getColumnNumber = rowNumber
+        table.cell(table_id = indicatorTablePositive, column = (getColumnNumber % 2 == 0) ? 0 : 3, row = (getRowNumber % 2 == 0) ?  getRowNumber : getRowNumber - 1,
+             bgcolor=color.new(color.green, tableTransparency + 10), text_color = color.white,
+                 text_halign = text.align_center, text_valign = text.align_center, text_size = size.small,
+                     text = sym)
+
+tableCellChangePositive(symCloseChange,rowNumber) =>
+    if isShowTable == "YES"
+        getRowNumber = rowNumber
+        getColumnNumber = rowNumber
+        table.cell(table_id = indicatorTablePositive, column = (getColumnNumber % 2 == 0) ? 1 : 4, row = (getRowNumber % 2 == 0) ?  getRowNumber : getRowNumber - 1,
+             bgcolor= color.new(color.green, tableTransparency), text_color = color.white,
+                 text_halign = text.align_center, text_valign = text.align_center, text_size = size.small,
+                     text = str.tostring(symCloseChange, format.percent))
+
+tableCellNiftyPositiveImpact(symNiftyEffect,rowNumber) =>
+    if isShowTable == "YES"
+        getRowNumber = rowNumber
+        getColumnNumber = rowNumber
+        table.cell(table_id = indicatorTablePositive, column = (getColumnNumber % 2 == 0) ? 2 : 5, row = (getRowNumber % 2 == 0) ?  getRowNumber : getRowNumber - 1,
+             bgcolor= color.new(color.green, tableTransparency), text_color = color.white,
+                 text_halign = text.align_center, text_valign = text.align_center, text_size = size.small,
+                     text = str.tostring(symNiftyEffect, format.mintick))
+
+tableCellSymbolNegative(sym, rowNumber) =>
+    if isShowTable == "YES"
+        getRowNumber = rowNumber
+        getColumnNumber = rowNumber
+        table.cell(table_id = indicatorTableNegative, column = (getColumnNumber % 2 == 0) ? 0 : 3, row = (getRowNumber % 2 == 0) ?  getRowNumber : getRowNumber - 1,
+             bgcolor= color.new(color.red, tableTransparency + 10), text_color = color.white,
+                 text_halign = text.align_center, text_valign = text.align_center, text_size = size.small,
+                     text = sym)
+
+tableCellChangeNegative(symCloseChange,rowNumber) =>
+    if isShowTable == "YES"
+        getRowNumber = rowNumber
+        getColumnNumber = rowNumber
+        table.cell(table_id = indicatorTableNegative, column = (getColumnNumber % 2 == 0) ? 1 : 4, row = (getRowNumber % 2 == 0) ?  getRowNumber : getRowNumber - 1,
+             bgcolor= color.new(color.red, tableTransparency), text_color = color.white,
+                 text_halign = text.align_center, text_valign = text.align_center, text_size = size.small,
+                     text = str.tostring(symCloseChange, format.percent))
+
+tableCellNiftyNegativeImpact(symNiftyEffect,rowNumber) =>
+    if isShowTable == "YES"
+        getRowNumber = rowNumber
+        getColumnNumber = rowNumber
+        table.cell(table_id = indicatorTableNegative, column = (getColumnNumber % 2 == 0) ? 2 : 5, row = (getRowNumber % 2 == 0) ?  getRowNumber : getRowNumber - 1,
+             bgcolor= color.new(color.red, tableTransparency), text_color = color.white,
+                 text_halign = text.align_center, text_valign = text.align_center, text_size = size.small,
+                     text = str.tostring(symNiftyEffect, format.mintick))
+//FUNCTION
+symNiftyStatus(stockName, stockWeightage, setRowNumberPositive, setRowNumberNegative) =>
+    counterPositive = 0
+    counterNegative = 0
+    symCloseChange = request.security("NSE:" + stockName, tableTimeframe, ((close-close[1])*100)/close[1])
+    symNiftyEffect = symCloseChange >= 0 ? stockWeightage * 1 : stockWeightage * -1
+    if symCloseChange > 0 //("NSE:RELIANCE")
+        tableCellSymbolPositive(stockName, setRowNumberPositive)
+        tableCellChangePositive(symCloseChange,setRowNumberPositive)
+        // tableCellNiftyPositiveImpact(symNiftyEffect, setRowNumberPositive)
+        counterPositive := counterPositive + 1
+
+    if symCloseChange < 0 //("NSE:RELIANCE")
+        tableCellSymbolNegative(stockName, setRowNumberNegative)
+        tableCellChangeNegative(symCloseChange,setRowNumberNegative)
+        // tableCellNiftyNegativeImpact(symNiftyEffect, setRowNumberNegative)
+        counterNegative := counterNegative + 1
+    [counterPositive, counterNegative, symNiftyEffect]
+
+
+//User Input
+var string messageNote = " ==> NOTE:" + "\n" + "STOCK NAME ENTERED SHOULD BE AS PER TRADING VIEW NAMING STANDARDS FOR A SYMBOL"
+
+stock0 = input.string("M_M", "For Example Nift symbol for Mahindra and Mahindra is M&M but Trading view uses M_M, so enter M_M", inline = "0", group = messageNote)
+
+var string stockNameandWeightage = "Adjust below weightaige and stock name as per NSE website."
+     + "\n\n ===> NOTE: AFTER UPDATE DON'T FORGET TO SAVE IT AS DEFAULT"
+
+updatedOn = input.string("22-Mar-22", "STOCK LIST UPDATED ON (DD-MM-YY)", inline = "0", group = stockNameandWeightage)
+
+stock1 = input.string("RELIANCE", "Stock 1", inline="1", group="Stock Name and Weightage")
+stock1Weightage = input.float(10.2, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock2 = input.string("TCS", "Stock 2", inline="1", group="Stock Name and Weightage")
+stock2Weightage = input.float(7.83, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock3 = input.string("HDFCBANK", "Stock 3", inline="1", group="Stock Name and Weightage")
+stock3Weightage = input.float(6.43, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock4 = input.string("BHARTIARTL", "Stock 4", inline="1", group="Stock Name and Weightage")
+stock4Weightage = input.float(4.48, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock5 = input.string("ICICIBANK", "Stock 5", inline="1", group="Stock Name and Weightage")
+stock5Weightage = input.float(4.22, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock6 = input.string("INFY", "Stock 6", inline="1", group="Stock Name and Weightage")
+stock6Weightage = input.float(3.76, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock7 = input.string("SBIN", "Stock 7", inline="1", group="Stock Name and Weightage")
+stock7Weightage = input.float(3.76, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock8 = input.string("HINDUNILVR", "Stock 8", inline="1", group="Stock Name and Weightage")
+stock8Weightage = input.float(3.3, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock9 = input.string("ITC", "Stock 9", inline="1", group="Stock Name and Weightage")
+stock9Weightage = input.float(3.17, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock10 = input.string("LT", "Stock 10", inline="1", group="Stock Name and Weightage")
+stock10Weightage = input.float(2.53, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock11 = input.string("HCLTECH", "Stock 11", inline="1", group="Stock Name and Weightage")
+stock11Weightage = input.float(2.21, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock12 = input.string("ONGC", "Stock 12", inline="1", group="Stock Name and Weightage")
+stock12Weightage = input.float(2.14, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock13 = input.string("SUNPHARMA", "Stock 13", inline="1", group="Stock Name and Weightage")
+stock13Weightage = input.float(2.13, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock14 = input.string("BAJFINANCE", "Stock 14", inline="1", group="Stock Name and Weightage")
+stock14Weightage = input.float(2.1, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock15 = input.string("NTPC", "Stock 15", inline="1", group="Stock Name and Weightage")
+stock15Weightage = input.float(2.03, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock16 = input.string("TATAMOTORS", "Stock 16", inline="1", group="Stock Name and Weightage")
+stock16Weightage = input.float(2.01, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock17 = input.string("MARUTI", "Stock 17", inline="1", group="Stock Name and Weightage")
+stock17Weightage = input.float(1.97, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock18 = input.string("ADANIENT", "Stock 18", inline="1", group="Stock Name and Weightage")
+stock18Weightage = input.float(1.86, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock19 = input.string("AXISBANK", "Stock 19", inline="1", group="Stock Name and Weightage")
+stock19Weightage = input.float(1.81, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock20 = input.string("KOTAKBANK", "Stock 20", inline="1", group="Stock Name and Weightage")
+stock20Weightage = input.float(1.8, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock21 = input.string("M_M", "Stock 21", inline="1", group="Stock Name and Weightage")
+stock21Weightage = input.float(1.75, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock22 = input.string("ADANIPORTS", "Stock 22", inline="1", group="Stock Name and Weightage")
+stock22Weightage = input.float(1.69, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock23 = input.string("COALINDIA", "Stock 23", inline="1", group="Stock Name and Weightage")
+stock23Weightage = input.float(1.67, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock24 = input.string("ULTRACEMCO", "Stock 24", inline="1", group="Stock Name and Weightage")
+stock24Weightage = input.float(1.67, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock25 = input.string("POWERGRID", "Stock 25", inline="1", group="Stock Name and Weightage")
+stock25Weightage = input.float(1.65, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock26 = input.string("TITAN", "Stock 26", inline="1", group="Stock Name and Weightage")
+stock26Weightage = input.float(1.51, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock27 = input.string("ASIANPAINT", "Stock 27", inline="1", group="Stock Name and Weightage")
+stock27Weightage = input.float(1.49, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock28 = input.string("BAJAJ_AUTO", "Stock 28", inline="1", group="Stock Name and Weightage")
+stock28Weightage = input.float(1.39, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock29 = input.string("WIPRO", "Stock 29", inline="1", group="Stock Name and Weightage")
+stock29Weightage = input.float(1.31, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock30 = input.string("BAJAJFINSV", "Stock 30", inline="1", group="Stock Name and Weightage")
+stock30Weightage = input.float(1.27, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock31 = input.string("NESTLEIND", "Stock 31", inline="1", group="Stock Name and Weightage")
+stock31Weightage = input.float(1.23, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock32 = input.string("JSWSTEEL", "Stock 32", inline="1", group="Stock Name and Weightage")
+stock32Weightage = input.float(1.13, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock33 = input.string("TATASTEEL", "Stock 33", inline="1", group="Stock Name and Weightage")
+stock33Weightage = input.float(0.97, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock34 = input.string("SBILIFE", "Stock 34", inline="1", group="Stock Name and Weightage")
+stock34Weightage = input.float(0.88, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock35 = input.string("GRASIM", "Stock 35", inline="1", group="Stock Name and Weightage")
+stock35Weightage = input.float(0.88, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock36 = input.string("LTIM", "Stock 36", inline="1", group="Stock Name and Weightage")
+stock36Weightage = input.float(0.81, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock37 = input.string("HDFCLIFE", "Stock 37", inline="1", group="Stock Name and Weightage")
+stock37Weightage = input.float(0.77, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock38 = input.string("TECHM", "Stock 38", inline="1", group="Stock Name and Weightage")
+stock38Weightage = input.float(0.75, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock39 = input.string("BPCL", "Stock 39", inline="1", group="Stock Name and Weightage")
+stock39Weightage = input.float(0.74, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+stock40 = input.string("HINDALCO", "Stock 40", inline="1", group="Stock Name and Weightage")
+stock40Weightage = input.float(0.72, "Weightage", minval=0, maxval=15, inline="1", group="Stock Name and Weightage")
+
+//Function Call
+TotalStockWeightage = stock1Weightage + stock2Weightage
+[counterPositive1, counterNegative1, symNiftyEffect1] = symNiftyStatus(stock1, stock1Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive1
+setRowNumberNegative := setRowNumberNegative + counterNegative1
+niftyImpactValue := niftyImpactValue + symNiftyEffect1
+
+[counterPositive2, counterNegative2, symNiftyEffect2] = symNiftyStatus(stock2, stock2Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive2
+setRowNumberNegative := setRowNumberNegative + counterNegative2
+niftyImpactValue := niftyImpactValue + symNiftyEffect2
+
+[counterPositive3, counterNegative3, symNiftyEffect3] = symNiftyStatus(stock3, stock3Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive3
+setRowNumberNegative := setRowNumberNegative + counterNegative3
+niftyImpactValue := niftyImpactValue + symNiftyEffect3
+
+[counterPositive4, counterNegative4, symNiftyEffect4] = symNiftyStatus(stock4, stock4Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive4
+setRowNumberNegative := setRowNumberNegative + counterNegative4
+niftyImpactValue := niftyImpactValue + symNiftyEffect4
+
+[counterPositive5, counterNegative5, symNiftyEffect5] = symNiftyStatus(stock5, stock5Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive5
+setRowNumberNegative := setRowNumberNegative + counterNegative5
+niftyImpactValue := niftyImpactValue + symNiftyEffect5
+
+[counterPositive6, counterNegative6, symNiftyEffect6] = symNiftyStatus(stock6, stock6Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive6
+setRowNumberNegative := setRowNumberNegative + counterNegative6
+niftyImpactValue := niftyImpactValue + symNiftyEffect6
+
+[counterPositive7, counterNegative7, symNiftyEffect7] = symNiftyStatus(stock7, stock7Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive7
+setRowNumberNegative := setRowNumberNegative + counterNegative7
+niftyImpactValue := niftyImpactValue + symNiftyEffect7
+
+[counterPositive8, counterNegative8, symNiftyEffect8] = symNiftyStatus(stock8, stock8Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive8
+setRowNumberNegative := setRowNumberNegative + counterNegative8
+niftyImpactValue := niftyImpactValue + symNiftyEffect8
+
+[counterPositive9, counterNegative9, symNiftyEffect9] = symNiftyStatus(stock9, stock9Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive9
+setRowNumberNegative := setRowNumberNegative + counterNegative9
+niftyImpactValue := niftyImpactValue + symNiftyEffect9
+
+[counterPositive10, counterNegative10, symNiftyEffect10] = symNiftyStatus(stock10, stock10Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive10
+setRowNumberNegative := setRowNumberNegative + counterNegative10
+niftyImpactValue := niftyImpactValue + symNiftyEffect10
+
+[counterPositive11, counterNegative11, symNiftyEffect11] = symNiftyStatus(stock11, stock11Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive11
+setRowNumberNegative := setRowNumberNegative + counterNegative11
+niftyImpactValue := niftyImpactValue + symNiftyEffect11
+
+[counterPositive12, counterNegative12, symNiftyEffect12] = symNiftyStatus(stock12, stock12Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive12
+setRowNumberNegative := setRowNumberNegative + counterNegative12
+niftyImpactValue := niftyImpactValue + symNiftyEffect12
+
+[counterPositive13, counterNegative13, symNiftyEffect13] = symNiftyStatus(stock13, stock13Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive13
+setRowNumberNegative := setRowNumberNegative + counterNegative13
+niftyImpactValue := niftyImpactValue + symNiftyEffect13
+
+[counterPositive14, counterNegative14, symNiftyEffect14] = symNiftyStatus(stock14, stock14Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive14
+setRowNumberNegative := setRowNumberNegative + counterNegative14
+niftyImpactValue := niftyImpactValue + symNiftyEffect14
+
+[counterPositive15, counterNegative15, symNiftyEffect15] = symNiftyStatus(stock15, stock15Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive15
+setRowNumberNegative := setRowNumberNegative + counterNegative15
+niftyImpactValue := niftyImpactValue + symNiftyEffect15
+
+[counterPositive16, counterNegative16, symNiftyEffect16] = symNiftyStatus(stock16, stock16Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive16
+setRowNumberNegative := setRowNumberNegative + counterNegative16
+niftyImpactValue := niftyImpactValue + symNiftyEffect16
+
+[counterPositive17, counterNegative17, symNiftyEffect17] = symNiftyStatus(stock17, stock17Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive17
+setRowNumberNegative := setRowNumberNegative + counterNegative17
+niftyImpactValue := niftyImpactValue + symNiftyEffect17
+
+[counterPositive18, counterNegative18, symNiftyEffect18] = symNiftyStatus(stock18, stock18Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive18
+setRowNumberNegative := setRowNumberNegative + counterNegative18
+niftyImpactValue := niftyImpactValue + symNiftyEffect18
+
+[counterPositive19, counterNegative19, symNiftyEffect19] = symNiftyStatus(stock19, stock19Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive19
+setRowNumberNegative := setRowNumberNegative + counterNegative19
+niftyImpactValue := niftyImpactValue + symNiftyEffect19
+
+[counterPositive20, counterNegative20, symNiftyEffect20] = symNiftyStatus(stock20, stock20Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive20
+setRowNumberNegative := setRowNumberNegative + counterNegative20
+niftyImpactValue := niftyImpactValue + symNiftyEffect20
+
+[counterPositive21, counterNegative21, symNiftyEffect21] = symNiftyStatus(stock21, stock21Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive21
+setRowNumberNegative := setRowNumberNegative + counterNegative21
+niftyImpactValue := niftyImpactValue + symNiftyEffect21
+
+[counterPositive22, counterNegative22, symNiftyEffect22] = symNiftyStatus(stock22, stock22Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive22
+setRowNumberNegative := setRowNumberNegative + counterNegative22
+niftyImpactValue := niftyImpactValue + symNiftyEffect22
+
+[counterPositive23, counterNegative23, symNiftyEffect23] = symNiftyStatus(stock23, stock23Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive23
+setRowNumberNegative := setRowNumberNegative + counterNegative23
+niftyImpactValue := niftyImpactValue + symNiftyEffect23
+
+[counterPositive24, counterNegative24, symNiftyEffect24] = symNiftyStatus(stock24, stock24Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive24
+setRowNumberNegative := setRowNumberNegative + counterNegative24
+niftyImpactValue := niftyImpactValue + symNiftyEffect24
+
+[counterPositive25, counterNegative25, symNiftyEffect25] = symNiftyStatus(stock25, stock25Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive25
+setRowNumberNegative := setRowNumberNegative + counterNegative25
+niftyImpactValue := niftyImpactValue + symNiftyEffect25
+
+[counterPositive26, counterNegative26, symNiftyEffect26] = symNiftyStatus(stock26, stock26Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive26
+setRowNumberNegative := setRowNumberNegative + counterNegative26
+niftyImpactValue := niftyImpactValue + symNiftyEffect26
+
+[counterPositive27, counterNegative27, symNiftyEffect27] = symNiftyStatus(stock27, stock27Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive27
+setRowNumberNegative := setRowNumberNegative + counterNegative27
+niftyImpactValue := niftyImpactValue + symNiftyEffect27
+
+[counterPositive28, counterNegative28, symNiftyEffect28] = symNiftyStatus(stock28, stock28Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive28
+setRowNumberNegative := setRowNumberNegative + counterNegative28
+niftyImpactValue := niftyImpactValue + symNiftyEffect28
+
+[counterPositive29, counterNegative29, symNiftyEffect29] = symNiftyStatus(stock29, stock29Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive29
+setRowNumberNegative := setRowNumberNegative + counterNegative29
+niftyImpactValue := niftyImpactValue + symNiftyEffect29
+
+[counterPositive30, counterNegative30, symNiftyEffect30] = symNiftyStatus(stock30, stock30Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive30
+setRowNumberNegative := setRowNumberNegative + counterNegative30
+niftyImpactValue := niftyImpactValue + symNiftyEffect30
+
+[counterPositive31, counterNegative31, symNiftyEffect31] = symNiftyStatus(stock31, stock31Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive31
+setRowNumberNegative := setRowNumberNegative + counterNegative31
+niftyImpactValue := niftyImpactValue + symNiftyEffect31
+
+[counterPositive32, counterNegative32, symNiftyEffect32] = symNiftyStatus(stock32, stock32Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive32
+setRowNumberNegative := setRowNumberNegative + counterNegative32
+niftyImpactValue := niftyImpactValue + symNiftyEffect32
+
+[counterPositive33, counterNegative33, symNiftyEffect33] = symNiftyStatus(stock33, stock33Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive33
+setRowNumberNegative := setRowNumberNegative + counterNegative33
+niftyImpactValue := niftyImpactValue + symNiftyEffect33
+
+[counterPositive34, counterNegative34, symNiftyEffect34] = symNiftyStatus(stock34, stock34Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive34
+setRowNumberNegative := setRowNumberNegative + counterNegative34
+niftyImpactValue := niftyImpactValue + symNiftyEffect34
+
+[counterPositive35, counterNegative35, symNiftyEffect35] = symNiftyStatus(stock35, stock35Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive35
+setRowNumberNegative := setRowNumberNegative + counterNegative35
+niftyImpactValue := niftyImpactValue + symNiftyEffect35
+
+[counterPositive36, counterNegative36, symNiftyEffect36] = symNiftyStatus(stock36, stock36Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive36
+setRowNumberNegative := setRowNumberNegative + counterNegative36
+niftyImpactValue := niftyImpactValue + symNiftyEffect36
+
+[counterPositive37, counterNegative37, symNiftyEffect37] = symNiftyStatus(stock37, stock37Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive37
+setRowNumberNegative := setRowNumberNegative + counterNegative37
+niftyImpactValue := niftyImpactValue + symNiftyEffect37
+
+[counterPositive38, counterNegative38, symNiftyEffect38] = symNiftyStatus(stock38, stock38Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive38
+setRowNumberNegative := setRowNumberNegative + counterNegative38
+niftyImpactValue := niftyImpactValue + symNiftyEffect38
+
+[counterPositive39, counterNegative39, symNiftyEffect39] = symNiftyStatus(stock39, stock39Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive39
+setRowNumberNegative := setRowNumberNegative + counterNegative39
+niftyImpactValue := niftyImpactValue + symNiftyEffect39
+
+[counterPositive40, counterNegative40, symNiftyEffect40] = symNiftyStatus(stock40, stock40Weightage, setRowNumberPositive, setRowNumberNegative)
+setRowNumberPositive := setRowNumberPositive + counterPositive40
+setRowNumberNegative := setRowNumberNegative + counterNegative40
+niftyImpactValue := niftyImpactValue + symNiftyEffect40
+
+label.set_text(labelNiftyImpactValue, "Nifty Impact = " + str.tostring(niftyImpactValue, format.percent) + nl + "TimeFrame = " + tableTimeframe)
+label.set_color(labelNiftyImpactValue, niftyImpactValue > 0 ? color.green : color.red)
+label.delete(labelNiftyImpactValue[1])
